@@ -1,0 +1,11 @@
+package: server
+import:
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: v1.20.1
+  subpackages:
+  - reflection
+ignore:
+- simple/helloworld

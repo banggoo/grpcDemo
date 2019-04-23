@@ -1,0 +1,10 @@
+https://lihaoquan.me/2017/6/29/how-to-use-protobuf.html
+
+wget https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/protoc-3.7.1-linux-x86_64.zip
+
+#项目必须放在任意一个GOPATH的src下面
+export GOPATH=/root/go:/home/jfwu/grpctest/
+
+vendor和glide.yaml同级别
+
+protoc -I ./ --go_out=plugins=grpc:./ ./helloworld.proto
