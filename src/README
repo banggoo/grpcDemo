@@ -1,10 +1,19 @@
-https://lihaoquan.me/2017/6/29/how-to-use-protobuf.html
+1, set GOPATH
+  mkdir /home/grpctest; cd /home/grpctest/grpcDemo
+  git clone https://github.com/banggoo/grpcDemo
+  export GOPATH=/root/go:/home/grpctest/grpcDemo
 
-wget https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/protoc-3.7.1-linux-x86_64.zip
+2, install glide
+  go get -u github.com/jeffzhangme/glide
+  cp /root/go/bin/glide /usr/local/bin/
 
-#项目必须放在任意一个GOPATH的src下面
-export GOPATH=/root/go:/home/jfwu/grpctest/
+3, glide up
+  cd server; glide up; mv simple vendor
+  cd client; glide up; mv simple vendor
 
-vendor和glide.yaml同级别
+4, make
+  cd ..; make
 
-protoc -I ./ --go_out=plugins=grpc:./ ./helloworld.proto
+#protoc -I ./ --go_out=plugins=grpc:./ ./helloworld.proto
+#https://lihaoquan.me/2017/6/29/how-to-use-protobuf.html
+#wget https://github.com/protocolbuffers/protobuf/releases/download/v3.7.1/protoc-3.7.1-linux-x86_64.zip
