@@ -1,5 +1,5 @@
 1, set GOPATH
-  mkdir /home/grpctest; cd /home/grpctest/grpcDemo
+  mkdir /home/grpctest; cd /home/grpctest;
   git clone https://github.com/banggoo/grpcDemo
   export GOPATH=/root/go:/home/grpctest/grpcDemo
 
@@ -8,8 +8,9 @@
   cp /root/go/bin/glide /usr/local/bin/
 
 3, glide up
+  cd /home/grpctest/grpcDemo/src
   cd server; glide up; mv simple vendor
-  cd client; glide up; mv simple vendor
+  cd ../client; glide up; mv simple vendor
 
 4, make
   cd ..; make

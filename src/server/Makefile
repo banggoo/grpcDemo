@@ -3,7 +3,7 @@ BIN=server
 all: ${BIN}
 
 ${BIN}:
-	go generate server.go
+	#go generate server.go
 	go build ${LDFLAGS} -o ${BIN} server.go
 
 install:
