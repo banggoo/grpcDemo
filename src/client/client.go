@@ -18,7 +18,8 @@ import (
 var (
 	KeepAlive   = flag.Int64("k", 1, "keepalive")                    //长短连接开关，默认开启长连接
 	Times       = flag.Int64("n", 0, "times")                        //运行次数，0代表不限制
-	Duration    = flag.Int64("d", 0, "duration")                     //运行时间，0代表不限制
+	Duration    = flag.Int64("d", 0, "duration")                     //运行时间，0代表不限制。单位为秒。
+	Timeout     = flag.Int64("e", 5, "grpc timeout")                 //grpc连接超时时间，默认5秒。
 	Threads     = flag.Int64("t", 1, "threads")                      //线程数，默认为１
 	QPS         = flag.Int64("q", 10, "QPS")                         //发送频率，默认为10
 	QueueSize   = flag.Int64("s", 1024, "channel queue Size")        //channel缓冲区长度，默认为1024
@@ -26,8 +27,10 @@ var (
 	DefaultName = flag.String("defaultName", "world", "defaultNmae") //grpc name
 
 	TaskPoolWaitGroup sync.WaitGroup
+	StatisticsChan	  chan int
 	Conn              *grpc.ClientConn = nil
 	Jobs              int64            = 0
+	TimeAve           int              = 0
 )
 
 type Task struct {
@@ -38,6 +41,7 @@ type Task struct {
 func (t *Task) run() {
 	var i int64
 	start := time.Now()
+	fmt.Println("Start Time: ", start)
 
 	for i = 0; i < t.poolSize; i++ {
 		TaskPoolWaitGroup.Add(1)
@@ -45,7 +49,12 @@ func (t *Task) run() {
 		go func() {
 			for j := range t.job {
 				_ = j
+
+				jobStart := time.Now()
 				justDoIt()
+				//fmt.Println(time.Since(jobStart))
+				StatisticsChan <- int(time.Since(jobStart)/1.0e+3)
+
 				atomic.AddInt64(&Jobs, 1)
 
 				//如果探测次数达到设定阈值，则退出协程
@@ -54,7 +63,7 @@ func (t *Task) run() {
 				}
 
 				//如果运行时间达到阈值，则退出协程
-				if *Duration != 0 && int64(time.Since(start)) > *Duration {
+				if *Duration != 0 && int64(time.Since(start)/1.0e+9) > *Duration {
 					break
 				}
 			}
@@ -64,10 +73,20 @@ func (t *Task) run() {
 	}
 
 	Fini()
+
+	fmt.Println("End Time: ", time.Now())
+	fmt.Println(strings.Repeat("#", 100))
+
+	fmt.Println("Run Times:           ", Jobs)
+	//fmt.Println("Run Time Duration:   ", int(time.Since(start)/1.0e+9))
+	fmt.Println("Run Time Duration:   ", time.Since(start))
+	fmt.Println("Run Time Average(ms):", TimeAve/1.0e+3)
+	//fmt.Println("Run Time Average(us):", TimeAve)
 }
 
 func Fini() {
 	TaskPoolWaitGroup.Wait()
+	close(StatisticsChan)
 
 	if Conn != nil {
 		Conn.Close()
@@ -83,7 +102,10 @@ func justDoIt() {
 }
 
 func invoke(c pb.GreeterClient, name string) {
-	r, err := c.SayHello(context.Background(), &pb.HelloRequest{Name: name})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*Timeout)*time.Second)
+	defer cancel()
+
+	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}
@@ -101,10 +123,9 @@ func testKeepalive() {
 		}
 		Conn = conn
 	}
-	name := *DefaultName
 
 	c = pb.NewGreeterClient(Conn)
-	invoke(c, name)
+	invoke(c, *DefaultName)
 }
 
 func testNoKeepalive() {
@@ -117,10 +138,8 @@ func testNoKeepalive() {
 	}
 	defer conn.Close()
 
-	name := *DefaultName
-
-	c = pb.NewGreeterClient(Conn)
-	invoke(c, name)
+	c = pb.NewGreeterClient(conn)
+	invoke(c, *DefaultName)
 }
 
 func jobProducer(job chan int) {
@@ -134,23 +153,30 @@ func jobProducer(job chan int) {
 			job <- 1
 		}
 
-		t := time.Since(start)
-		fmt.Printf("Time duration %d, for %d qps.", t, *QPS)
+		t := time.Since(start)/1.0e+6
 
 		if t > 1000 {
 			//如果打印此行，则需要调整参数以避免出现此种情况。
 			fmt.Println(strings.Repeat("!", 100))
 		} else {
-			time.Sleep((1000 - t*time.Millisecond) * time.Millisecond)
+			time.Sleep((1000 - t) * time.Millisecond)
 		}
+	}
+}
+
+func Statistics(tlist chan int) {
+	for j := range tlist {
+		TimeAve = (TimeAve + j)/2.0
 	}
 }
 
 func main() {
 	flag.Parse()
 	jobChan := make(chan int, *QueueSize)
+	StatisticsChan = make(chan int, *QueueSize)
 
 	go jobProducer(jobChan)
+	go Statistics(StatisticsChan)
 
 	task := Task{jobChan, *Threads}
 	task.run()
